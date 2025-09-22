@@ -2,7 +2,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>nz.co.jammehcow.lukkit</groupId>
-    <artifactId>Lukkit</artifactId>
+    <artifactId>Lukkit-PaperFix</artifactId>
     <version>2.1.2</version>
 
     <packaging>jar</packaging>
@@ -110,7 +110,7 @@
         <dependency>
             <groupId>org.zeroturnaround</groupId>
             <artifactId>zt-zip</artifactId>
-            <version>1.13</version>
+            <version>1.12</version>
         </dependency>
 
         <!-- Reflections -->
