@@ -17,28 +17,26 @@ jobs:
         java-version: '8'
         distribution: 'temurin'
     
-    - name: Fix import statements
+    - name: Fix import statements automatically
       run: |
-        echo "Fixing LukkitPlugin to InternalLuaPlugin imports..."
+        echo "=== Fixing import statements ==="
         
-        # Fix all LukkitPlugin imports to InternalLuaPlugin
+        # Fix LukkitPlugin -> InternalLuaPlugin imports
         find src/main/java -name "*.java" -exec sed -i 's/import nz\.co\.jammehcow\.lukkit\.environment\.plugin\.LukkitPlugin;/import nz.co.jammehcow.lukkit.environment.plugin.InternalLuaPlugin;/g' {} +
         find src/main/java -name "*.java" -exec sed -i 's/LukkitPlugin plugin/InternalLuaPlugin plugin/g' {} +
         find src/main/java -name "*.java" -exec sed -i 's/private LukkitPlugin plugin/private InternalLuaPlugin plugin/g' {} +
         find src/main/java -name "*.java" -exec sed -i 's/public LukkitPlugin plugin/public InternalLuaPlugin plugin/g' {} +
-        find src/main/java -name "*.java" -exec sed -i 's/protected LukkitPlugin plugin/protected InternalLuaPlugin plugin/g' {} +
         
-        # Fix Main import in PluginWrapper
+        # Fix Main -> LukkitContainer in PluginWrapper
         sed -i 's/import nz\.co\.jammehcow\.lukkit\.Main;/import nz.co.jammehcow.lukkit.LukkitContainer;/g' src/main/java/nz/co/jammehcow/lukkit/environment/wrappers/PluginWrapper.java
         sed -i 's/Main\.instance/LukkitContainer.getInstance()/g' src/main/java/nz/co/jammehcow/lukkit/environment/wrappers/PluginWrapper.java
         
-        # Fix PluginDescriptionFile imports if needed
-        find src/main/java -name "*.java" -exec sed -i 's/import nz\.co\.jammehcow\.lukkit\.environment\.plugin\.PluginDescriptionFile;/import nz.co.jammehcow.lukkit.environment.plugin.PluginDescriptionFile;/g' {} +
+        # Fix getServer() call in PluginWrapper
+        sed -i 's/plugin\.getServer()/LukkitContainer.getInstance().getServer()/g' src/main/java/nz/co/jammehcow/lukkit/environment/wrappers/PluginWrapper.java
         
-        echo "Import fixes applied!"
         echo "=== Checking fixed files ==="
-        grep -r "InternalLuaPlugin" src/main/java/nz/co/jammehcow/lukkit/environment/wrappers/PluginWrapper.java || echo "No InternalLuaPlugin found in PluginWrapper"
-        grep -r "LukkitContainer" src/main/java/nz/co/jammehcow/lukkit/environment/wrappers/PluginWrapper.java || echo "No LukkitContainer found in PluginWrapper"
+        grep -r "LukkitPlugin" src/main/java/ || echo "No more LukkitPlugin references found!"
+        grep -r "Main.instance" src/main/java/ || echo "No more Main.instance references found!"
     
     - name: Cache Maven dependencies
       uses: actions/cache@v4
@@ -49,9 +47,7 @@ jobs:
     
     - name: Build with Maven
       run: |
-        mvn clean compile --batch-mode
-        echo "=== Compilation successful, now packaging ==="
-        mvn package --batch-mode
+        mvn clean package --batch-mode
         echo "=== Build completed ==="
     
     - name: Find built JAR
@@ -108,11 +104,11 @@ jobs:
           3. Keep .lkt files in plugins/ folder (no changes needed)
           4. Restart server
           
+          **Finally: Lukkit that works on modern Paper versions!**
+          
           ### Credits:
           - Original: jammehcow, AL_1, mathhulk
           - Paper Fix: TheGamingMahi
-          
-          **Finally: Lukkit that works on modern Paper versions!**
         files: target/Lukkit-*.jar
         draft: false
         prerelease: false
