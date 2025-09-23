@@ -15,7 +15,36 @@ jobs:
       uses: actions/setup-java@v4
       with:
         java-version: '8'
-        distribution: 'temurin'  # Changed from 'adopt' (adopt is deprecated)
+        distribution: 'temurin'
+    
+    - name: Check critical files exist
+      run: |
+        echo "=== Checking if critical files exist ==="
+        ls -la src/main/java/nz/co/jammehcow/lukkit/environment/plugin/ || echo "Plugin directory missing!"
+        [ -f "src/main/java/nz/co/jammehcow/lukkit/environment/plugin/PluginDescriptionFile.java" ] && echo "✅ PluginDescriptionFile exists" || echo "❌ PluginDescriptionFile MISSING - THIS IS BAD"
+        [ -f "src/main/java/nz/co/jammehcow/lukkit/environment/plugin/InternalLuaPlugin.java" ] && echo "✅ InternalLuaPlugin exists" || echo "❌ InternalLuaPlugin MISSING"
+        [ -f "src/main/java/nz/co/jammehcow/lukkit/LukkitContainer.java" ] && echo "✅ LukkitContainer exists" || echo "❌ LukkitContainer MISSING"
+        
+        echo "=== Checking for problematic files ==="
+        [ -f "src/main/java/nz/co/jammehcow/lukkit/Main.java" ] && echo "❌ Main.java should be deleted" || echo "✅ Main.java correctly deleted"
+        [ -f "src/main/java/nz/co/jammehcow/lukkit/environment/plugin/LukkitPlugin.java" ] && echo "❌ LukkitPlugin.java should be deleted" || echo "✅ LukkitPlugin.java correctly deleted"
+    
+    - name: Fix imports (safely)
+      run: |
+        echo "=== Safely fixing imports ==="
+        
+        # ONLY fix import statements, not variable declarations
+        find src/main/java -name "*.java" -exec sed -i 's/import nz\.co\.jammehcow\.lukkit\.environment\.plugin\.LukkitPlugin;/import nz.co.jammehcow.lukkit.environment.plugin.InternalLuaPlugin;/g' {} +
+        
+        # Fix Main import in PluginWrapper specifically
+        if [ -f "src/main/java/nz/co/jammehcow/lukkit/environment/wrappers/PluginWrapper.java" ]; then
+          sed -i 's/import nz\.co\.jammehcow\.lukkit\.Main;/import nz.co.jammehcow.lukkit.LukkitContainer;/g' src/main/java/nz/co/jammehcow/lukkit/environment/wrappers/PluginWrapper.java
+          sed -i 's/Main\.instance/LukkitContainer.getInstance()/g' src/main/java/nz/co/jammehcow/lukkit/environment/wrappers/PluginWrapper.java
+        fi
+        
+        echo "=== Verifying fixes ==="
+        grep -n "InternalLuaPlugin" src/main/java/nz/co/jammehcow/lukkit/environment/LuaEnvironment.java || echo "No InternalLuaPlugin in LuaEnvironment"
+        grep -n "LukkitContainer" src/main/java/nz/co/jammehcow/lukkit/environment/wrappers/PluginWrapper.java || echo "No LukkitContainer in PluginWrapper"
     
     - name: Cache Maven dependencies
       uses: actions/cache@v4
@@ -26,69 +55,23 @@ jobs:
     
     - name: Build with Maven
       run: |
-        mvn clean package --batch-mode
-        echo "=== Build completed ==="
-    
-    - name: Find built JAR
-      run: |
-        echo "Looking for built JAR files:"
-        find . -name "*.jar" -type f | grep -v ".m2" | head -10
-        echo "=== Target directory contents ==="
-        ls -la target/
-        echo "=== Checking JAR file ==="
-        if [ -f target/Lukkit-*.jar ]; then
-          JAR_FILE=$(ls target/Lukkit-*.jar)
-          echo "Found JAR: $JAR_FILE"
-          echo "JAR size: $(du -h $JAR_FILE | cut -f1)"
-          echo "=== Basic JAR contents ==="
-          jar -tf "$JAR_FILE" | head -10
+        echo "=== Attempting build ==="
+        mvn clean compile --batch-mode
+        
+        if [ $? -eq 0 ]; then
+          echo "✅ Compilation successful!"
+          mvn package --batch-mode
         else
-          echo "ERROR: No Lukkit JAR found in target/"
-          ls -la target/
+          echo "❌ Compilation failed"
+          echo "=== First few errors ==="
+          mvn clean compile --batch-mode 2>&1 | grep -A 5 -B 2 "cannot find symbol" | head -20
+          exit 1
         fi
     
     - name: Upload JAR artifact
+      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: Lukkit-PaperFix
-        path: target/Lukkit-*.jar  # Changed from out/ to target/
+        path: target/Lukkit-*.jar
         retention-days: 30
-    
-    - name: Create Release
-      if: github.ref == 'refs/heads/main'
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: v2.1.2-paperfix
-        name: "Lukkit 2.1.2 - Paper Compatibility Fix"
-        body: |
-          ## Lukkit Paper Compatibility Fix
-          
-          **Complete rewrite using container approach to bypass Paper's PluginLoader restrictions**
-          
-          ### What's Fixed:
-          - ✅ **Paper 1.20+ compatibility** - Uses container approach instead of PluginLoader
-          - ✅ **Maintains 1.8-1.21.8 Spigot compatibility** 
-          - ✅ **Zero changes for server owners** - Same .lkt file placement
-          - ✅ **All original Lua API preserved** - Existing plugins work unchanged
-          
-          ### How It Works:
-          - Lukkit itself is a valid Paper plugin
-          - Lua plugins are loaded internally by Lukkit container
-          - Completely bypasses Paper's PluginLoader system
-          - Better isolation and error handling
-          
-          ### Installation:
-          1. Download this JAR
-          2. Replace old Lukkit.jar in plugins folder
-          3. Restart server - that's it!
-          
-          ### Credits:
-          - Original: jammehcow, AL_1, mathhulk
-          - Paper Fix: TheGamingMahi
-          
-          **Works on Paper 1.20+ where original Lukkit breaks!**
-        files: target/Lukkit-*.jar  # Changed from out/ to target/
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
