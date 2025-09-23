@@ -3,58 +3,7 @@ on:
   push:
     branches: [ main, master ]
   workflow_dispatch:
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Set up JDK 8
-      uses: actions/setup-java@v4
-      with:
-        java-version: '8'
-        distribution: 'temurin'
-    
-    - name: Fix import statements carefully
-      run: |
-        echo "=== Fixing import statements ==="
-        
-        # Create backup of problematic files
-        cp src/main/java/nz/co/jammehcow/lukkit/environment/wrappers/PluginWrapper.java PluginWrapper.java.backup
-        cp src/main/java/nz/co/jammehcow/lukkit/environment/plugin/InternalLuaPlugin.java InternalLuaPlugin.java.backup
-        cp src/main/java/nz/co/jammehcow/lukkit/LukkitContainer.java LukkitContainer.java.backup
-        
-        # Fix LukkitPlugin -> InternalLuaPlugin imports carefully
-        find src/main/java -name "*.java" -exec sed -i 's/import nz\.co\.jammehcow\.lukkit\.environment\.plugin\.LukkitPlugin;/import nz.co.jammehcow.lukkit.environment.plugin.InternalLuaPlugin;/g' {} +
-        
-        # Fix type references carefully (avoid breaking method names)
-        find src/main/java -name "*.java" -exec sed -i 's/\([^a-zA-Z0-9_]\)LukkitPlugin\([^a-zA-Z0-9_]\)/\1InternalLuaPlugin\2/g' {} +
-        find src/main/java -name "*.java" -exec sed -i 's/^LukkitPlugin/InternalLuaPlugin/g' {} +
-        
-        # Fix PluginDescriptionFile imports
-        find src/main/java -name "*.java" -exec sed -i 's/import nz\.co\.jammehcow\.lukkit\.environment\.plugin\.PluginDescriptionFile;/import nz.co.jammehcow.lukkit.environment.plugin.pluginmeta.PluginDescriptionFile;/g' {} +
-        
-        echo "=== Fixing specific method calls ==="
-        
-        # Fix getDescription() calls
-        find src/main/java -name "*.java" -exec sed -i 's/\.getDescription()/.getPluginDescription()/g' {} +
-        
-        # Fix BukkitScheduler calls to use LukkitContainer
-        sed -i 's/\.runTaskAsynchronously(plugin,/.runTaskAsynchronously(LukkitContainer.getInstance(),/g' src/main/java/nz/co/jammehcow/lukkit/environment/plugin/commands/LukkitCommand.java
-        sed -i 's/\.runTaskLater(plugin,/.runTaskLater(LukkitContainer.getInstance(),/g' src/main/java/nz/co/jammehcow/lukkit/environment/plugin/commands/LukkitCommand.java
-        sed -i 's/\.runTaskTimer(plugin,/.runTaskTimer(LukkitContainer.getInstance(),/g' src/main/java/nz/co/jammehcow/lukkit/environment/plugin/commands/LukkitCommand.java
-        
-        # Fix config methods - comment out problematic lines instead of deleting
-        echo "=== Commenting out problematic methods in PluginWrapper ==="
-        
-        # Create Python script for precise fixes
-        cat > fix_pluginwrapper.py << 'EOF'name: Build Lukkit Paper-Fix
-on:
-  push:
-    branches: [ main, master ]
-  workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
