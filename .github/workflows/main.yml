@@ -49,7 +49,7 @@ jobs:
         # Fix config methods - comment out problematic lines instead of deleting
         echo "=== Commenting out problematic methods in PluginWrapper ==="
         
-        # Use Python for more precise code modification
+        # Create Python script for precise fixes
         cat > fix_pluginwrapper.py << 'EOF'
 import re
 
