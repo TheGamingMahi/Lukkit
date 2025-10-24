@@ -1,13 +1,23 @@
-#   This is the default config for Lukkit 2.0 and above.
+#   This is the config for Lukkit 2.2.0 - The Paper Fix Update
 
 # Leave this line alone please, I'm begging you, just don't change it!
-cfg-version: 3
+cfg-version: 4
 
 # Enable the debug globals for the Lua compiler
 lua-debug: false
 
 # Should I check for updates and let you know?
-update-checker: true
+update-checker: false
 
 # Whether or not /lukkit run can be used.
 can-run-code: true
+
+# Enable debug mode for verbose logging (helpful for troubleshooting)
+# Shows detailed information about plugin loading and operations
+debug-mode: false
+
+# PAPER FIX: Bypass plugin registration with PluginManager
+# Set to 'true' for Paper servers (recommended for compatibility)
+# Set to 'false' for Spigot/older servers
+# This fixes compatibility issues with modern Paper versions
+bypass-plugin-registration: true
