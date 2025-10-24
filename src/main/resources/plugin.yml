@@ -1,9 +1,11 @@
 name: Lukkit
 main: nz.co.jammehcow.lukkit.Main
-version: 2.1.2
+version: 2.2.0
 
-author: ArtexDevelopment
-authors: [jammehcow, AL_1, mathhulk]
+author: TheGamingMahi
+authors: [TheGamingMahi, jammehcow, AL_1, mathhulk]
+
+description: Lua scripting for Minecraft servers with Paper compatibility
 
 api-version: 1.13
 
