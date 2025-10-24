@@ -2,6 +2,7 @@ package nz.co.jammehcow.lukkit;
 
 import nz.co.jammehcow.lukkit.environment.LuaEnvironment;
 import nz.co.jammehcow.lukkit.environment.plugin.LukkitPlugin;
+import nz.co.jammehcow.lukkit.environment.plugin.LukkitPluginFile;
 import nz.co.jammehcow.lukkit.environment.plugin.LukkitPluginLoader;
 import org.apache.commons.lang.ArrayUtils;
 import org.bukkit.ChatColor;
@@ -31,10 +32,12 @@ import java.util.stream.Stream;
  * The Main entry class of the plugin.
  *
  * @author jammehcow
+ * @author TheGamingMahi (Paper compatibility fix)
  */
 public class Main extends JavaPlugin {
     // Config version
-    private static final int CFG_VERSION = 3;
+    private static final int CFG_VERSION = 4;
+
     /**
      * The instance of the plugin. Used for external access by plugin wrappers etc..
      */
@@ -49,12 +52,22 @@ public class Main extends JavaPlugin {
     private PluginManager pluginManager;
     private LukkitPluginLoader pluginLoader = null;
 
+    // Config options (loaded from config.yml)
+    private boolean debugMode = false;
+    private boolean bypassPluginRegistration = true;
+
     private static boolean isLukkitPluginFile(String fileName) {
         for (Pattern pattern : LukkitPluginLoader.fileFilters) {
             if (pattern.matcher(fileName).find()) return true;
         }
 
         return false;
+    }
+
+    private void debug(String message) {
+        if (debugMode) {
+            this.getLogger().info("[DEBUG] " + message);
+        }
     }
 
     private static String getHelpMessage() {
@@ -95,14 +108,35 @@ public class Main extends JavaPlugin {
         } else {
             this.getLogger().info("No Lukkit plugins were loaded.");
         }
+
+        // If we bypassed plugin registration, manually enable plugins
+        if (bypassPluginRegistration) {
+            debug("Bypass mode enabled - manually enabling plugins");
+            if (this.pluginLoader != null) {
+                for (LukkitPlugin plugin : this.pluginLoader.loadedPlugins) {
+                    debug("Enabling plugin: " + plugin.getName());
+                    this.pluginLoader.enablePlugin(plugin);
+                }
+            }
+        }
     }
 
     @Override
     public void onDisable() {
+        // If we bypassed plugin registration, manually disable plugins
+        if (bypassPluginRegistration) {
+            if (this.pluginLoader != null) {
+                for (LukkitPlugin plugin : new ArrayList<>(this.pluginLoader.loadedPlugins)) {
+                    this.pluginLoader.disablePlugin(plugin);
+                }
+            }
+        }
     }
 
     @Override
     public void onLoad() {
+        debug("onLoad() called!");
+
         // Set the logger and instance
         logger = this.getLogger();
         instance = this;
@@ -114,6 +148,13 @@ public class Main extends JavaPlugin {
         // Check the config
         this.checkConfig();
 
+        // Load config options
+        this.debugMode = this.getConfig().getBoolean("debug-mode", false);
+        this.bypassPluginRegistration = this.getConfig().getBoolean("bypass-plugin-registration", true);
+
+        debug("Debug mode: " + debugMode);
+        debug("Bypass plugin registration: " + bypassPluginRegistration);
+
         // Initialize the Lua env (sets up globals)
         LuaEnvironment.init(this.getConfig().getBoolean("lua-debug"));
 
@@ -124,20 +165,53 @@ public class Main extends JavaPlugin {
 
         this.getLogger().info("Loading Lukkit plugins...");
 
-        // Get the files in the plugins directory
-        File[] plugins = this.getFile().getParentFile().listFiles();
+        // PAPER FIX: Use getDataFolder() to get correct plugins folder
+        // Paper remaps plugins to .paper-remapped folder, but .lkt files stay in /plugins/
+        File pluginsFolder = this.getDataFolder().getParentFile();
+        debug("Plugins folder: " + pluginsFolder.getAbsolutePath());
+
+        File[] plugins = pluginsFolder.listFiles();
 
         if (plugins != null) {
+            debug("Found " + plugins.length + " files in plugins folder");
+
             // Set the start time of loading
             long startTime = System.currentTimeMillis();
 
             for (File file : plugins) {
+                debug("Checking file: " + file.getName());
+
                 // "break" if the file isn't for Lukkit
                 if (isLukkitPluginFile(file.getName())) {
-                    // Load the plugin using LukkitPluginLoader
+                    debug("Found .lkt file: " + file.getName());
+
                     try {
-                        this.pluginManager.loadPlugin(file);
+                        if (bypassPluginRegistration) {
+                            // BYPASS MODE: Load plugin manually without PluginManager
+                            debug("Using BYPASS mode - loading manually");
+
+                            LukkitPluginFile pluginFile = new LukkitPluginFile(file);
+
+                            if (this.pluginLoader == null) {
+                                this.pluginLoader = new LukkitPluginLoader(this.getServer());
+                                debug("Created new LukkitPluginLoader");
+                            }
+
+                            LukkitPlugin plugin = new LukkitPlugin(this.pluginLoader, pluginFile);
+                            debug("Created LukkitPlugin: " + plugin.getName());
+
+                            this.pluginLoader.loadedPlugins.add(plugin);
+                            debug("Added to loadedPlugins list. Total: " + this.pluginLoader.loadedPlugins.size());
+
+                            plugin.onLoad();
+                            debug("Called plugin.onLoad()");
+                        } else {
+                            // NORMAL MODE: Use PluginManager (original behavior)
+                            debug("Using NORMAL mode - loading via PluginManager");
+                            this.pluginManager.loadPlugin(file);
+                        }
                     } catch (InvalidPluginException | InvalidDescriptionException | LuaError e) {
+                        debug("ERROR loading plugin: " + e.getMessage());
                         LuaEnvironment.addError(e);
                         e.printStackTrace();
                     }
@@ -146,12 +220,18 @@ public class Main extends JavaPlugin {
 
             // Get the total time to load plugins and save to loadTime member
             loadTime = System.currentTimeMillis() - startTime;
+            debug("Finished loading plugins in " + loadTime + "ms");
+        } else {
+            debug("plugins array is NULL!");
         }
 
-        for (Plugin plugin : this.pluginManager.getPlugins()) {
-            if (plugin instanceof LukkitPlugin) {
-                this.pluginLoader = (LukkitPluginLoader) plugin.getPluginLoader();
-                break;
+        // If using normal mode, find the plugin loader from registered plugins
+        if (!bypassPluginRegistration) {
+            for (Plugin plugin : this.pluginManager.getPlugins()) {
+                if (plugin instanceof LukkitPlugin) {
+                    this.pluginLoader = (LukkitPluginLoader) plugin.getPluginLoader();
+                    break;
+                }
             }
         }
     }
@@ -312,9 +392,19 @@ public class Main extends JavaPlugin {
     }
 
     void iteratePlugins(Consumer<LukkitPlugin> call) {
-        for (Plugin plugin : this.pluginManager.getPlugins()) {
-            if (plugin instanceof LukkitPlugin) {
-                call.accept((LukkitPlugin) plugin);
+        if (bypassPluginRegistration) {
+            // In bypass mode, iterate our internal list
+            if (this.pluginLoader != null) {
+                for (LukkitPlugin plugin : this.pluginLoader.loadedPlugins) {
+                    call.accept(plugin);
+                }
+            }
+        } else {
+            // In normal mode, iterate registered plugins
+            for (Plugin plugin : this.pluginManager.getPlugins()) {
+                if (plugin instanceof LukkitPlugin) {
+                    call.accept((LukkitPlugin) plugin);
+                }
             }
         }
     }
