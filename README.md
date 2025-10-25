@@ -139,6 +139,6 @@ Lukkit is open source. Original license terms apply.
 
 ---
 
-**Download:** [Lukkit-2.2.0.jar](link-here)  
+**Download:** [Lukkit-2.2.0.jar](https://github.com/TheGamingMahi/Lukkit-PaperFix/releases/tag/Lukkit)  
 **Support:** Use `/lukkit dev errors` for debugging  
 **Version:** 2.2.0 
